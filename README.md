@@ -18,7 +18,7 @@ Save and restore your window layout per monitor on macOS — automatically handl
 ## Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/monitor-layouts.git
+git clone https://github.com/aishaandatt2000/monitor-layouts.git
 cd monitor-layouts
 bash install.sh
 ```
