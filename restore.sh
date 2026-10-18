@@ -92,7 +92,6 @@ def match_windows(saved_wins, current_wins):
       1. Exact title match
       2. Partial title match (any word >3 chars from saved title appears in current title)
       3. Index fallback
-    Returns list of (saved, current_win) pairs. Unmatched current windows are skipped.
     """
     unmatched_current = list(current_wins)
     pairs = []
@@ -125,7 +124,7 @@ def match_windows(saved_wins, current_wins):
             pairs.append((saved, matched, 'partial'))
             unmatched_current.remove(matched)
         else:
-            pairs.append((saved, None, 'none'))  # will use index fallback
+            pairs.append((saved, None, 'none'))
 
     # Pass 3: index fallback for unmatched saved windows
     fallback_current = list(unmatched_current)
@@ -136,7 +135,6 @@ def match_windows(saved_wins, current_wins):
             if fallback_idx < len(fallback_current):
                 final_pairs.append((saved, fallback_current[fallback_idx], 'index'))
                 fallback_idx += 1
-            # else: no current window available, skip
         else:
             final_pairs.append((saved, cw, method))
 
