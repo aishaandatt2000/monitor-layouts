@@ -53,7 +53,8 @@ def auto_mode_enabled():
 def set_auto_mode(enabled):
     os.makedirs(CONFIG_DIR, exist_ok=True)
     if enabled:
-        open(FLAG_FILE, "w").close()
+        with open(FLAG_FILE, "w"):
+            pass
     else:
         try:
             os.remove(FLAG_FILE)
@@ -85,11 +86,14 @@ def notify(title, message):
 
 def run_script(script_path):
     """Run a shell script, return (returncode, stdout, stderr)."""
-    result = subprocess.run(
-        ["bash", script_path],
-        capture_output=True, text=True
-    )
-    return result.returncode, result.stdout, result.stderr
+    try:
+        result = subprocess.run(
+            ["bash", script_path],
+            capture_output=True, text=True, timeout=120
+        )
+        return result.returncode, result.stdout, result.stderr
+    except subprocess.TimeoutExpired:
+        return 1, "", f"{os.path.basename(script_path)} timed out after 120s"
 
 
 class MonitorLayoutsApp(rumps.App):
@@ -141,32 +145,42 @@ class MonitorLayoutsApp(rumps.App):
     def capture(self, _):
         self.capture_item.title = "📸 Capturing..."
         def run():
-            code, out, err = run_script(CAPTURE_SH)
-            if code == 0:
-                notify("📸 Monitor Layouts", "Layout captured successfully")
-            else:
-                msg = err.strip() or out.strip()
-                notify("⚠️ Monitor Layouts", f"Capture failed: {msg[:80]}")
-            self.capture_item.title = "📸 Capture Layout"
-            self.refresh_state()
+            try:
+                code, out, err = run_script(CAPTURE_SH)
+            except Exception as e:
+                code, out, err = 1, "", str(e)
+            def update(_timer):
+                if code == 0:
+                    notify("📸 Monitor Layouts", "Layout captured successfully")
+                else:
+                    msg = err.strip() or out.strip()
+                    notify("⚠️ Monitor Layouts", f"Capture failed: {msg[:80]}")
+                self.capture_item.title = "📸 Capture Layout"
+                self.refresh_state()
+            rumps.Timer(update, 0).start()
         threading.Thread(target=run, daemon=True).start()
 
     def restore(self, _):
         self.restore_item.title = "♻️  Restoring..."
         def run():
-            code, out, err = run_script(RESTORE_SH)
-            if code == 0:
-                for line in reversed(out.splitlines()):
-                    if "Done —" in line:
-                        notify("✅ Monitor Layouts", line.strip().lstrip("✅ ").strip())
-                        break
+            try:
+                code, out, err = run_script(RESTORE_SH)
+            except Exception as e:
+                code, out, err = 1, "", str(e)
+            def update(_timer):
+                if code == 0:
+                    for line in reversed(out.splitlines()):
+                        if "Done —" in line:
+                            notify("✅ Monitor Layouts", line.strip().lstrip("✅ ").strip())
+                            break
+                    else:
+                        notify("✅ Monitor Layouts", "Layout restored")
                 else:
-                    notify("✅ Monitor Layouts", "Layout restored")
-            else:
-                msg = err.strip() or out.strip()
-                notify("⚠️ Monitor Layouts", f"Restore failed: {msg[:80]}")
-            self.restore_item.title = "♻️  Restore Layout"
-            self.refresh_state()
+                    msg = err.strip() or out.strip()
+                    notify("⚠️ Monitor Layouts", f"Restore failed: {msg[:80]}")
+                self.restore_item.title = "♻️  Restore Layout"
+                self.refresh_state()
+            rumps.Timer(update, 0).start()
         threading.Thread(target=run, daemon=True).start()
 
     def toggle_auto(self, _):
