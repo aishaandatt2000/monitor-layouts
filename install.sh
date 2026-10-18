@@ -52,6 +52,29 @@ echo "✅ Scripts are executable"
 mkdir -p "$HOME/.config/monitor-layouts/layouts"
 echo "✅ Config directory ready: ~/.config/monitor-layouts/"
 
+# Install rumps (required for menubar app)
+echo "📦 Installing Python dependency: rumps..."
+pip3 install rumps --break-system-packages --quiet 2>/dev/null || \
+  pip3 install rumps --quiet 2>/dev/null || \
+  echo "⚠️  Could not install rumps automatically. Run: pip3 install rumps"
+
+# Make watcher and app executable
+chmod +x "$(dirname "$0")/watcher.py" "$(dirname "$0")/app.py" 2>/dev/null || true
+echo "✅ watcher.py and app.py are executable"
+
+# Install Launch Agent
+PLIST_SRC="$(dirname "$0")/com.monitor-layouts.watcher.plist"
+PLIST_DEST="$HOME/Library/LaunchAgents/com.monitor-layouts.watcher.plist"
+INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+mkdir -p "$HOME/Library/LaunchAgents"
+sed "s|INSTALL_DIR|$INSTALL_DIR|g" "$PLIST_SRC" > "$PLIST_DEST"
+
+# Unload first if already loaded (avoid duplicate)
+launchctl unload "$PLIST_DEST" 2>/dev/null || true
+launchctl load "$PLIST_DEST"
+echo "✅ Launch Agent registered (watcher starts at login)"
+
 echo ""
 echo "✅ Installation complete!"
 echo ""
@@ -60,4 +83,8 @@ echo "  1. Connect your first monitor and arrange your windows"
 echo "  2. Run: ./capture.sh"
 echo "  3. When you reconnect that monitor later, run: ./restore.sh"
 echo ""
-echo "Repeat step 1-2 for each monitor you use."
+echo "Menubar app:"
+echo "  Start it with: python3 $INSTALL_DIR/app.py &"
+echo "  To auto-start at login, add the above line to your ~/.zprofile"
+echo ""
+echo "Repeat capture for each monitor you use."
