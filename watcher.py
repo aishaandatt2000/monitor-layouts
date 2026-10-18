@@ -54,7 +54,10 @@ def write_last_display(monitor_id):
 def notify(title, message):
     """Send a macOS notification via osascript."""
     script = f'display notification "{message}" with title "{title}"'
-    subprocess.run(["osascript", "-e", script], capture_output=True)
+    try:
+        subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 def auto_mode_enabled():
@@ -63,10 +66,14 @@ def auto_mode_enabled():
 
 def run_restore():
     """Run restore.sh and return (success, message)."""
-    result = subprocess.run(
-        ["bash", RESTORE_SH],
-        capture_output=True, text=True
-    )
+    try:
+        result = subprocess.run(
+            ["bash", RESTORE_SH],
+            capture_output=True, text=True,
+            timeout=120
+        )
+    except subprocess.TimeoutExpired:
+        return False, "restore.sh timed out after 120s"
     if result.returncode == 0:
         for line in reversed(result.stdout.splitlines()):
             if "Done —" in line:
