@@ -56,7 +56,7 @@ fi
 # Step 2: Restore window positions, spaces, and fullscreen state
 echo "📐 Restoring windows..."
 python3 - "$LAYOUT_FILE" "$EXTERNAL_ID" <<'PYEOF'
-import json, os, subprocess, sys, time, datetime
+import json, os, subprocess, sys, tempfile, time, datetime
 from collections import defaultdict
 
 layout_file = sys.argv[1]
@@ -225,8 +225,16 @@ summary = {
     "monitor_id": monitor_id
 }
 config_dir = os.path.expanduser("~/.config/monitor-layouts")
-with open(os.path.join(config_dir, "last_restore.json"), "w") as f:
-    json.dump(summary, f, indent=2)
+os.makedirs(config_dir, exist_ok=True)
+final_path = os.path.join(config_dir, "last_restore.json")
+tmp_fd, tmp_path = tempfile.mkstemp(dir=config_dir)
+try:
+    with os.fdopen(tmp_fd, "w") as f:
+        json.dump(summary, f, indent=2)
+    os.replace(tmp_path, final_path)
+except Exception:
+    os.unlink(tmp_path)
+    raise
 
 print(f"\n✅ Done — {ok} restored, {skipped} skipped (not running), {failed} failed")
 PYEOF
