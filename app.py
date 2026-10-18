@@ -40,7 +40,7 @@ def get_external_monitor():
         if "Resolution:" in line:
             current_res = line.split(":", 1)[-1].strip()
         if "Type:" in line and "external" in line.lower() and current_id:
-            label = f"📺 {current_res}" if current_res else "📺 External Monitor"
+            label = f"📺 External ({current_res})" if current_res else "📺 External Monitor"
             return current_id, label
 
     return None, "No external monitor"
@@ -70,7 +70,7 @@ def read_last_restore():
         skipped = data.get("skipped", 0)
         failed  = data.get("failed", 0)
         ts      = data.get("timestamp", "")[:16].replace("T", " ")
-        return f"🕐 Last: {ok} ok, {skipped} skipped, {failed} failed  ({ts})"
+        return f"🕐 Last restore: {ok} restored, {skipped} skipped, {failed} failed  ({ts})"
     except (FileNotFoundError, json.JSONDecodeError):
         return "🕐 Last restore: none yet"
 
