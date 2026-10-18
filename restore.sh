@@ -55,11 +55,12 @@ fi
 
 # Step 2: Restore window positions, spaces, and fullscreen state
 echo "📐 Restoring windows..."
-python3 - "$LAYOUT_FILE" <<'PYEOF'
-import json, subprocess, sys, time
+python3 - "$LAYOUT_FILE" "$EXTERNAL_ID" <<'PYEOF'
+import json, os, subprocess, sys, time, datetime
 from collections import defaultdict
 
 layout_file = sys.argv[1]
+monitor_id = sys.argv[2]
 
 with open(layout_file) as f:
     saved_windows = json.load(f)
@@ -215,6 +216,17 @@ for app, saved_wins in saved_by_app.items():
             err = (move_result.stderr + resize_result.stderr).strip()
             print(f"  ⚠️  {app}: {err or 'could not reposition'}")
             failed += 1
+
+summary = {
+    "timestamp": datetime.datetime.now().isoformat(timespec='seconds'),
+    "ok": ok,
+    "skipped": skipped,
+    "failed": failed,
+    "monitor_id": monitor_id
+}
+config_dir = os.path.expanduser("~/.config/monitor-layouts")
+with open(os.path.join(config_dir, "last_restore.json"), "w") as f:
+    json.dump(summary, f, indent=2)
 
 print(f"\n✅ Done — {ok} restored, {skipped} skipped (not running), {failed} failed")
 PYEOF
