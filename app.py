@@ -150,6 +150,7 @@ class MonitorLayoutsApp(rumps.App):
             except Exception as e:
                 code, out, err = 1, "", str(e)
             def update(_timer):
+                _timer.stop()
                 if code == 0:
                     notify("📸 Monitor Layouts", "Layout captured successfully")
                 else:
@@ -168,6 +169,7 @@ class MonitorLayoutsApp(rumps.App):
             except Exception as e:
                 code, out, err = 1, "", str(e)
             def update(_timer):
+                _timer.stop()
                 if code == 0:
                     for line in reversed(out.splitlines()):
                         if "Done —" in line:
