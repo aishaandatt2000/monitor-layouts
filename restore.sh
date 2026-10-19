@@ -73,6 +73,52 @@ if result.returncode != 0:
 
 current_windows = json.load(__import__('io').StringIO(result.stdout))
 
+# Build a map of current display uuid -> index
+displays_result = subprocess.run(['yabai', '-m', 'query', '--displays'], capture_output=True, text=True)
+current_displays = json.load(__import__('io').StringIO(displays_result.stdout))
+current_uuid_to_index = {d['uuid']: d['index'] for d in current_displays}
+
+# Build saved display index -> current display index using uuid stored in each window
+# Each saved window has 'display' (index at capture time). We need the uuid for that
+# display. yabai windows don't store display uuid directly, but we can infer it:
+# The layout file is named after the external monitor uuid (monitor_id).
+# At capture time, find which display index the external had by matching frame bounds.
+# Simpler: store uuid->index at capture time. Since we don't have that, use frame position:
+# external monitor windows have frames with x outside [0, builtin_width].
+# Instead, use the most reliable signal: the saved display index for windows whose
+# saved frame x > 0 or frame width matches the external monitor resolution.
+#
+# Cleanest approach: find which saved display index maps to the external monitor uuid
+# by looking at current display bounds vs saved window frames.
+external_display = next((d for d in current_displays if d['uuid'] == monitor_id), None)
+builtin_display  = next((d for d in current_displays if d['uuid'] != monitor_id), None)
+
+# Find what display index external had at capture time:
+# windows on the external have frames within its bounds.
+saved_external_idx = None
+if external_display:
+    ext_frame = external_display['frame']
+    for w in saved_windows:
+        f = w.get('frame', {})
+        # If the window's saved frame overlaps the current external display bounds
+        if (abs(f.get('x', 0) - ext_frame['x']) < 100 and
+                abs(f.get('w', 0) - ext_frame['w']) < 100):
+            saved_external_idx = w.get('display')
+            break
+
+# Build remap: saved display index -> current display index
+display_remap = {}
+if saved_external_idx and external_display and builtin_display:
+    current_external_idx = external_display['index']
+    current_builtin_idx  = builtin_display['index']
+    # Figure out saved builtin index (the other one)
+    all_saved_display_indices = {w.get('display') for w in saved_windows if w.get('display')}
+    saved_builtin_idx = next((i for i in all_saved_display_indices if i != saved_external_idx), None)
+    display_remap[saved_external_idx] = current_external_idx
+    if saved_builtin_idx:
+        display_remap[saved_builtin_idx] = current_builtin_idx
+
+print(f"  🖥  Display remap: {display_remap or 'none (indices unchanged)'}")
 # Check how many Spaces exist and create missing ones
 spaces_result = subprocess.run(['yabai', '-m', 'query', '--spaces'], capture_output=True, text=True)
 current_spaces = json.load(__import__('io').StringIO(spaces_result.stdout))
@@ -171,8 +217,8 @@ for app, saved_wins in saved_by_app.items():
         target_space = saved.get('space')
         is_fullscreen = saved.get('is-native-fullscreen', False)
 
-        # Move to correct space first
-        if target_space and win.get('space') != target_space:
+        # Move to correct space first (non-fullscreen windows only)
+        if not is_fullscreen and target_space and win.get('space') != target_space:
             subprocess.run(
                 ['yabai', '-m', 'window', str(win_id), '--space', str(target_space)],
                 capture_output=True
@@ -180,20 +226,59 @@ for app, saved_wins in saved_by_app.items():
             time.sleep(0.2)
 
         # Handle fullscreen
-        if is_fullscreen and not win.get('is-native-fullscreen'):
+        if is_fullscreen:
+            # Remap saved display index to current display index
+            target_display = saved.get('display')
+            if target_display and display_remap:
+                target_display = display_remap.get(target_display, target_display)
+
+            # If currently fullscreen, exit first and wait for animation to finish
+            if win.get('is-native-fullscreen'):
+                subprocess.run(
+                    ['yabai', '-m', 'window', str(win_id), '--toggle', 'native-fullscreen'],
+                    capture_output=True
+                )
+                time.sleep(1.5)
+
+            # Move to correct display. Do NOT move by space — space indices shift
+            # when monitors reconnect, so space 2 may now belong to the external
+            # monitor even if it was on the MacBook at capture time.
+            # For fullscreen windows, display placement is what matters.
+            if target_display:
+                # Re-query to get current display after potential fullscreen exit
+                cur = subprocess.run(['yabai', '-m', 'query', '--windows', '--window', str(win_id)],
+                                     capture_output=True, text=True)
+                if cur.returncode == 0:
+                    import io as _io
+                    cur_win = json.load(_io.StringIO(cur.stdout))
+                    if cur_win.get('display') != target_display:
+                        subprocess.run(
+                            ['yabai', '-m', 'window', str(win_id), '--display', str(target_display)],
+                            capture_output=True
+                        )
+                        time.sleep(0.5)
+
+            # Focus, then enter fullscreen via keyboard shortcut on the correct display
             subprocess.run(
-                ['yabai', '-m', 'window', str(win_id), '--toggle', 'native-fullscreen'],
+                ['yabai', '-m', 'window', str(win_id), '--focus'],
                 capture_output=True
             )
-            print(f"  ✅ {app}: → fullscreen on space {target_space} [{match_method} match]")
+            time.sleep(0.3)
+            subprocess.run(
+                ['osascript', '-e',
+                 'tell application "System Events" to keystroke "f" using {command down, control down}'],
+                capture_output=True
+            )
+            print(f"  ✅ {app}: → fullscreen on display {target_display} [{match_method} match]")
             ok += 1
             continue
-        elif not is_fullscreen and win.get('is-native-fullscreen'):
+        elif win.get('is-native-fullscreen'):
+            # Was fullscreen at capture but shouldn't be — exit fullscreen
             subprocess.run(
                 ['yabai', '-m', 'window', str(win_id), '--toggle', 'native-fullscreen'],
                 capture_output=True
             )
-            time.sleep(0.5)
+            time.sleep(1.5)
 
         # Set position and size via yabai
         x, y = int(frame['x']), int(frame['y'])

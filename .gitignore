@@ -1,3 +1,8 @@
 ~/.config/monitor-layouts/
 layouts/
 *.json
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
