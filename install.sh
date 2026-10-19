@@ -72,7 +72,7 @@ sed "s|INSTALL_DIR|$INSTALL_DIR|g" "$PLIST_SRC" > "$PLIST_DEST"
 
 # Unload first if already loaded (avoid duplicate)
 launchctl unload "$PLIST_DEST" 2>/dev/null || true
-launchctl load "$PLIST_DEST"
+launchctl load "$PLIST_DEST" 2>/dev/null || true
 echo "✅ Launch Agent registered (watcher starts at login)"
 
 echo ""
