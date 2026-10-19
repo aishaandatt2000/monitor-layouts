@@ -66,6 +66,32 @@ The script detects which monitor is connected and restores the right layout auto
 
 ---
 
+## Menubar App
+
+Start the menubar app for a GUI with one-click capture/restore and auto mode:
+
+```bash
+python3 app.py &
+```
+
+A `🖥` icon appears in your menubar. Click it to:
+- See which external monitor is connected
+- Capture or restore the current layout
+- Toggle **Auto Mode** — automatically restores your layout whenever a monitor is connected
+
+To start the app automatically at login, add this to your `~/.zprofile`:
+```bash
+python3 /path/to/monitor-layouts/app.py &
+```
+
+### Auto Mode
+
+When Auto Mode is ON, a background watcher polls for display changes every 5 seconds. When a new monitor is detected, it automatically runs `restore.sh` and sends a macOS notification with the result.
+
+The watcher runs as a Launch Agent (`com.monitor-layouts.watcher`) — it starts at login and restarts automatically if it crashes. Toggling Auto Mode ON/OFF only controls whether it acts on display changes; the watcher itself always runs after `install.sh`.
+
+---
+
 ## What gets saved and restored
 
 | Feature | Supported |
