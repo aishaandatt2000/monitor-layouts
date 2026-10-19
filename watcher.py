@@ -27,7 +27,7 @@ def get_external_monitor_id():
         for line in result.stdout.splitlines():
             if "Persistent screen id:" in line:
                 current_id = line.split()[-1]
-            if "external screen" in line.lower() or ("Type:" in line and "external" in line.lower()):
+            if "Type:" in line and "external" in line.lower():
                 return current_id
         return None
     except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -93,8 +93,7 @@ def main():
         last    = read_last_display()
 
         if current and current != last:
-            # New monitor connected
-            write_last_display(current)
+            # New monitor connected (or auto mode was off and last wasn't updated)
             if auto_mode_enabled():
                 notify("🖥 Monitor Layouts", "Monitor connected — restoring layout...")
                 success, msg = run_restore()
@@ -102,6 +101,10 @@ def main():
                     notify("✅ Monitor Layouts", msg)
                 else:
                     notify("⚠️ Monitor Layouts", f"Restore failed: {msg}")
+            # Only update last_known when auto mode is on (so enabling auto mode
+            # while monitor is connected still triggers a restore on next poll)
+            if auto_mode_enabled():
+                write_last_display(current)
         elif not current and last is not None:
             # Monitor disconnected
             write_last_display(None)
